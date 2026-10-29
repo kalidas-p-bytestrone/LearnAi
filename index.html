@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Interactive AI Mask Detection web application powered by Teachable Machine and TensorFlow.js with real-time biometric HUD and audio feedback." />
+  <title>Sentinel AI — Interactive Mask Detection System</title>
+
+  <!-- Google Fonts: Space Grotesk, Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- TensorFlow.js & Teachable Machine Image Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+
+  <!-- Canvas Confetti for Celebration effects -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="theme-cyber">
+  <!-- Subtle ambient background grid & glow -->
+  <div class="cyber-bg-glow" aria-hidden="true"></div>
+  <div class="cyber-grid-lines" aria-hidden="true"></div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-symbol">
+        <span class="symbol-ring"></span>
+        <span class="symbol-core"></span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">SENTINEL <span class="highlight">AI</span></div>
+        <div class="brand-tagline">BIOMETRIC MASK INTEGRITY SCANNER</div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Quick Stats -->
+    <div class="header-stats">
+      <div class="stat-pill" title="Current session mask compliance streak">
+        <span class="stat-icon">🛡️</span>
+        <div class="stat-info">
+          <span class="stat-label">PROTECT STREAK</span>
+          <span class="stat-value" id="streakCounter">00:00s</span>
+        </div>
+      </div>
+      <div class="stat-pill" title="Security passes captured">
+        <span class="stat-icon">📸</span>
+        <div class="stat-info">
+          <span class="stat-label">PASSES SAVED</span>
+          <span class="stat-value" id="snapshotsCounter">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <button id="toggleAudioBtn" class="cyber-btn icon-btn" title="Toggle Sound FX" aria-label="Toggle Sound FX">
+        <span id="audioIcon">🔊</span>
+      </button>
+      <button id="openModelModalBtn" class="cyber-btn primary-btn model-config-btn">
+        <span class="pulse-indicator" id="modelStatusDot"></span>
+        <span id="modelBtnLabel">Model: Connected</span>
+        <span class="key-tag">SETUP</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-main">
+    <!-- Left Column: The Interactive Cyber Viewport -->
+    <section class="viewport-section" aria-label="Detection Viewport">
+      <div class="viewport-frame" id="viewportFrame">
+        <!-- Corner Tech Accents -->
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+
+        <!-- Floating Telemetry Overlays -->
+        <div class="hud-top-bar">
+          <div class="hud-item fps-badge">
+            <span class="dot live-dot"></span>
+            <span>FPS: <strong id="fpsCounter">60</strong></span>
+          </div>
+          <div class="hud-item mode-badge" id="sourceBadge">CAMERA FEED</div>
+          <div class="hud-item resolution-badge" id="resBadge">640x480 HD</div>
+        </div>
+
+        <!-- Center Scanning HUD Reticle -->
+        <div class="hud-reticle" id="hudReticle">
+          <div class="reticle-box">
+            <div class="reticle-bracket top-left"></div>
+            <div class="reticle-bracket top-right"></div>
+            <div class="reticle-bracket bottom-left"></div>
+            <div class="reticle-bracket bottom-right"></div>
+            <div class="reticle-crosshair"></div>
+            <div class="target-status" id="reticleVerdict">TARGET ACQUIRED</div>
+          </div>
+        </div>
+
+        <!-- Animated Laser Scanline -->
+        <div class="laser-scanline" id="laserScanline"></div>
+
+        <!-- Canvas where Webcam / Uploaded images are rendered -->
+        <div class="canvas-wrapper" id="canvasWrapper">
+          <canvas id="detectionCanvas" width="640" height="480"></canvas>
+          <div class="loading-overlay" id="loadingOverlay">
+            <div class="scanner-spinner"></div>
+            <h3 id="loadingTitle">INITIALIZING NEURAL NETWORK</h3>
+            <p id="loadingDesc">Loading Teachable Machine weights &amp; camera sensors...</p>
+          </div>
+        </div>
+
+        <!-- AR Virtual Mask Picker Floating Pill -->
+        <div class="ar-mask-floating-pill" id="arMaskPill">
+          <span class="pill-title">✨ AR MASK WARDROBE:</span>
+          <button class="ar-chip active" data-mask="none">None</button>
+          <button class="ar-chip" data-mask="cyber">Cyber Neon</button>
+          <button class="ar-chip" data-mask="medical">N95 Pro</button>
+          <button class="ar-chip" data-mask="ninja">Stealth Ninja</button>
+          <button class="ar-chip" data-mask="smiley">Fun Smiley</button>
+        </div>
+      </div>
+
+      <!-- Viewport Control Deck -->
+      <div class="viewport-toolbar">
+        <div class="toolbar-group">
+          <button id="toggleCameraBtn" class="cyber-btn primary-btn glow-btn">
+            <span class="btn-icon">📷</span>
+            <span id="cameraBtnText">Start Camera</span>
+          </button>
+          <button id="flipCameraBtn" class="cyber-btn secondary-btn" title="Mirror / Flip Video" disabled>
+            <span>🔄 Flip View</span>
+          </button>
+        </div>
+
+        <div class="toolbar-group">
+          <!-- Hidden file input for custom image uploads -->
+          <input type="file" id="imageFileInput" accept="image/*" style="display: none;" />
+          <button id="uploadImageBtn" class="cyber-btn secondary-btn" title="Upload an image to scan">
+            <span>📁 Test Photo</span>
+          </button>
+          <button id="capturePassBtn" class="cyber-btn accent-btn" title="Generate Futuristic ID Badge Clearance Pass">
+            <span>🪪 Snapshot Pass</span>
+          </button>
+        </div>
+
+        <div class="toolbar-group">
+          <button id="toggleLaserBtn" class="cyber-btn toggle-btn active" title="Toggle Visual Scanline Laser">
+            <span>⚡ Laser</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Real-time Telemetry & Verdict Console -->
+    <aside class="telemetry-section" aria-label="Classification & Telemetry Console">
+      
+      <!-- Primary AI Verdict Banner -->
+      <div class="card verdict-card" id="verdictCard" data-status="idle">
+        <div class="card-edge-glow"></div>
+        <div class="verdict-header">
+          <div class="verdict-icon-wrap" id="verdictIconWrap">
+            <span class="verdict-icon" id="verdictIcon">🤖</span>
+          </div>
+          <div class="verdict-heading">
+            <div class="verdict-badge" id="verdictBadge">SYSTEM STANDBY</div>
+            <h2 class="verdict-title" id="verdictTitle">AWAITING CAMERA</h2>
+          </div>
+        </div>
+
+        <p class="verdict-instruction" id="verdictInstruction">
+          Start the camera or upload a photo to analyze mask compliance in real time.
+        </p>
+
+        <!-- Compliance Gauge Bar -->
+        <div class="compliance-meter-wrap">
+          <div class="compliance-header">
+            <span>BIO-SAFETY LEVEL</span>
+            <span class="compliance-percent" id="compliancePercent">--%</span>
+          </div>
+          <div class="compliance-track">
+            <div class="compliance-fill" id="complianceFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Model Probability Classes -->
+      <div class="card metrics-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="terminal-symbol">❯</span> NEURAL NETWORK CONFIDENCE
+          </div>
+          <span class="model-type-tag" id="activeModelTag">TM v2 Image Model</span>
+        </div>
+
+        <div class="predictions-list" id="predictionsList">
+          <!-- Dynamic Prediction Items will be rendered here -->
+          <div class="prediction-empty-state">
+            <span>Neural outputs will stream live once camera starts</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gamified Safety Badges & Interactive Milestones -->
+      <div class="card badges-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="terminal-symbol">★</span> BIO-SENTINEL ACHIEVEMENTS
+          </div>
+          <span class="badge-count" id="badgeCount">0 / 4</span>
+        </div>
+
+        <div class="badges-grid">
+          <div class="badge-item" id="badge1" title="Wear a mask and pass the detection check">
+            <div class="badge-icon">😷</div>
+            <div class="badge-details">
+              <div class="badge-name">Mask Verified</div>
+              <div class="badge-desc">1st Mask Pass</div>
+            </div>
+            <span class="badge-lock">🔒</span>
+          </div>
+
+          <div class="badge-item" id="badge2" title="Maintain mask protection for 15 seconds">
+            <div class="badge-icon">🛡️</div>
+            <div class="badge-details">
+              <div class="badge-name">Iron Shield</div>
+              <div class="badge-desc">15s Streak</div>
+            </div>
+            <span class="badge-lock">🔒</span>
+          </div>
+
+          <div class="badge-item" id="badge3" title="Try a futuristic AR virtual mask from the wardrobe">
+            <div class="badge-icon">✨</div>
+            <div class="badge-details">
+              <div class="badge-name">Cyber Modder</div>
+              <div class="badge-desc">Try AR Mask</div>
+            </div>
+            <span class="badge-lock">🔒</span>
+          </div>
+
+          <div class="badge-item" id="badge4" title="Generate and download a security ID pass">
+            <div class="badge-icon">🪪</div>
+            <div class="badge-details">
+              <div class="badge-name">Agent ID</div>
+              <div class="badge-desc">Take Snapshot</div>
+            </div>
+            <span class="badge-lock">🔒</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Model Link & Quick Switcher -->
+      <div class="card source-info-card">
+        <div class="source-info-header">
+          <span class="source-label">ACTIVE MODEL SOURCE</span>
+          <button id="quickEditModelBtn" class="link-btn">Change Model</button>
+        </div>
+        <div class="source-url-box" id="activeModelUrlDisplay" title="Current Teachable Machine model URL">
+          https://teachablemachine.withgoogle.com/models/1CPVctsXq/
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ============================================================== -->
+  <!-- MODAL 1: TEACHABLE MACHINE MODEL CONFIGURATION & IMPORT MODAL  -->
+  <!-- ============================================================== -->
+  <div class="modal-backdrop" id="modelModal" aria-hidden="true">
+    <div class="modal-box" role="dialog" aria-labelledby="modalHeading">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🧠</span>
+          <h2 id="modalHeading">Connect Teachable Machine Model</h2>
+        </div>
+        <button class="modal-close-btn" id="closeModelModalBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tabs: Cloud URL vs File Upload -->
+        <div class="modal-tabs">
+          <button class="tab-btn active" id="tabCloudUrl">Cloud Shareable Link</button>
+          <button class="tab-btn" id="tabUploadFiles">Upload Model Files</button>
+          <button class="tab-btn" id="tabDemoMode">Pre-Configured Demo</button>
+        </div>
+
+        <!-- Panel 1: Cloud URL -->
+        <div class="tab-panel active" id="panelCloudUrl">
+          <label for="tmModelUrlInput" class="input-label">Teachable Machine Model URL</label>
+          <div class="input-group">
+            <input 
+              type="url" 
+              id="tmModelUrlInput" 
+              class="cyber-input" 
+              value="https://teachablemachine.withgoogle.com/models/1CPVctsXq/"
+              placeholder="https://teachablemachine.withgoogle.com/models/1CPVctsXq/" 
+              spellcheck="false" 
+            />
+            <button id="loadUrlModelBtn" class="cyber-btn primary-btn">Connect Model</button>
+          </div>
+
+          <div class="help-box">
+            <div class="help-title">💡 How to get your Teachable Machine URL:</div>
+            <ol class="help-steps">
+              <li>In your Teachable Machine project, click <strong>"Export Model"</strong>.</li>
+              <li>Choose <strong>Tensorflow.js</strong> tab &gt; select <strong>"Upload (shareable link)"</strong>.</li>
+              <li>Click <strong>"Upload my model"</strong> and copy the generated link (e.g. <code>https://teachablemachine.withgoogle.com/models/xxxxxx/</code>).</li>
+              <li>Paste it here and click <strong>"Connect Model"</strong>!</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Panel 2: File Upload (model.json, metadata.json, weights.bin) -->
+        <div class="tab-panel" id="panelUploadFiles">
+          <p class="tab-instruction">Select the 3 files exported from Teachable Machine (or zip):</p>
+          <div class="file-dropzone" id="fileDropzone">
+            <div class="dropzone-icon">📥</div>
+            <div class="dropzone-text">Click or Drag &amp; Drop exported files here</div>
+            <div class="dropzone-sub">Requires <code>model.json</code>, <code>metadata.json</code>, and <code>weights.bin</code></div>
+            <input type="file" id="modelFolderInput" multiple accept=".json,.bin" style="display:none;" />
+          </div>
+          <div class="loaded-files-list" id="loadedFilesList"></div>
+          <button id="loadFilesModelBtn" class="cyber-btn primary-btn w-full mt-3" disabled>Load Selected Files</button>
+        </div>
+
+        <!-- Panel 3: Pre-configured Demo Mode -->
+        <div class="tab-panel" id="panelDemoMode">
+          <p class="tab-instruction">
+            Want to test right away? Use our built-in high-accuracy mask detector or simulator:
+          </p>
+          <div class="demo-options">
+            <div class="demo-card selected" id="demoOptionBuiltin">
+              <div class="demo-card-title">✨ Built-in Smart Mask Detector</div>
+              <p class="demo-card-desc">Automatically classifies face region, color spectrum &amp; mask features in real time without needing your own hosted server.</p>
+              <button id="selectBuiltinDemoBtn" class="cyber-btn secondary-btn">Activate Demo Model</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-status-msg" id="modelModalStatus"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="closeModelFooterBtn" class="cyber-btn secondary-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL 2: GENERATED SECURITY CLEARANCE ID PASS MODAL            -->
+  <!-- ============================================================== -->
+  <div class="modal-backdrop" id="passModal" aria-hidden="true">
+    <div class="modal-box pass-modal-box" role="dialog" aria-labelledby="passHeading">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🪪</span>
+          <h2 id="passHeading">Security Clearance Pass Generated</h2>
+        </div>
+        <button class="modal-close-btn" id="closePassModalBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body pass-modal-body">
+        <!-- Rendered Badge Pass Canvas -->
+        <div class="pass-preview-wrap">
+          <canvas id="idBadgeCanvas" width="480" height="620"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-footer pass-footer">
+        <button id="downloadPassBtn" class="cyber-btn primary-btn glow-btn">
+          <span>⬇️ Download ID Pass (PNG)</span>
+        </button>
+        <button id="closePassFooterBtn" class="cyber-btn secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Synthesizer Script -->
+  <script src="audio.js"></script>
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
